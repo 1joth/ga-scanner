@@ -128,31 +128,50 @@ function log(msg, type='') {
 
 async function fetchLiveData() {
   const status = document.getElementById('fetchStatus');
-  status.textContent = "⏳ FETCHING FROM MARKET FEED...";
+  status.textContent = "⏳ SYNCING LIVE DATA...";
   
   try {
-    // We use a public mirror for Yahoo Finance Nifty Data
-    // Symbol for Nifty 50 is ^NSEI
-    const url = "https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=1m&range=1d";
-    
-    // Using a reliable CORS proxy to bypass the blocks
+    // 1. Fetch Spot Price from Yahoo Finance
+    const symbol = "%5ENSEI"; 
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`;
     const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
     const json = await response.json();
     const data = JSON.parse(json.contents);
-
     const spot = data.chart.result[0].meta.regularMarketPrice;
-    const high = Math.max(...data.chart.result[0].indicators.quote[0].high);
+
+    // 2. Automatically Calculate Current Week Expiry (Tuesday)
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 (Sun) to 6 (Sat)
     
-    // Update your scanner inputs automatically
+    // Nifty Expiry is Tuesday (Day 2)
+    // Calculate days until the next Tuesday
+    let daysToTuesday = (2 - dayOfWeek + 7) % 7;
+    
+    // If today is Tuesday but it's after market hours (3:30 PM), move to next week
+    const now = new Date();
+    if (daysToTuesday === 0 && (now.getHours() > 15 || (now.getHours() === 15 && now.getMinutes() > 30))) {
+      daysToTuesday = 7;
+    }
+
+    const expiryDate = new Date(today);
+    expiryDate.setDate(today.getDate() + daysToTuesday);
+
+    // 3. Format Date to "DD-MMM-YYYY" (e.g., 21-Apr-2026)
+    const day = String(expiryDate.getDate()).padStart(2, '0');
+    const month = expiryDate.toLocaleString('en-IN', { month: 'short' }).toUpperCase();
+    const year = expiryDate.getFullYear();
+    const formattedExpiry = `${day}-${month}-${year}`;
+
+    // 4. Update Inputs
     document.getElementById('spot').value = Math.floor(spot);
-    document.getElementById('dayHigh').value = Math.floor(high);
+    document.getElementById('expiryDate').value = formattedExpiry;
     
-    status.textContent = "✅ SYNCED WITH FEED";
-    log(`Live Feed Sync: Nifty @ ${spot} | Day High: ${Math.floor(high)}`, "success");
+    status.textContent = "✅ SYNCED: " + formattedExpiry;
+    log(`Sync Success: Nifty @ ${spot} | Expiry: ${formattedExpiry}`, "success");
     
   } catch (e) {
-    status.textContent = "❌ FEED SYNC FAILED";
-    log("Market data feed currently unavailable.", "error");
+    status.textContent = "❌ SYNC FAILED";
+    log("Error: " + e.message, "error");
   }
 }
 
