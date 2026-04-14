@@ -106,7 +106,7 @@ input { width: 100%; background: var(--card); border: 1px solid #c0ccda; border-
     <div class="strike-panel">
       <div class="strike-header"><div id="statusTitle" style="font-family:'Orbitron'; font-size:12px;">READY TO SCAN</div></div>
       <table class="scan-table">
-        <thead><tr><th>STRIKE</th><th>TYPE</th><th>PREM</th><th>CAPITAL</th><th>VERDICT</th></tr></thead>
+        <thead><tr><th>STRIKE</th><th>TYPE</th><th>PREM</th><th>SL(20%)</th><th>CAPITAL</th><th>VERDICT</th></tr></thead>
         <tbody id="strikeTableBody"></tbody>
       </table>
     </div>
@@ -180,41 +180,47 @@ async function fetchLiveData() {
 }
 
 function runScan() {
-  // --- HAPTIC FEEDBACK (Android) ---
-  if (navigator.vibrate) navigator.vibrate(150);
+  // 1. Haptic Feedback for Android
+  if (navigator.vibrate) navigator.vibrate(200);
 
+  // 2. Get the values from the inputs
   const spot = parseFloat(document.getElementById('spot').value);
   const ivp = parseFloat(document.getElementById('ivPercentile').value);
   const prem = parseFloat(document.getElementById('atmPremium').value);
   const close = parseFloat(document.getElementById('cClose').value);
   const high = parseFloat(document.getElementById('dayHigh').value);
-  const expiry = document.getElementById('expiryDate').value;
 
-  // Update Top Display
-  document.getElementById('disp-spot').textContent = spot;
-  document.getElementById('disp-ivp').textContent = ivp + "%";
-  document.getElementById('disp-expiry').textContent = expiry;
-
-  const isBullish = close > high;
-  const isC9 = prem <= 60;
+  // 3. Logic & Calculations
   const isC10 = ivp >= 90;
+  const isC9 = prem <= 60;
+  const isBullish = close > high;
   const verdict = (isC10 && isC9 && isBullish) ? "✅ GO" : "❌ NO TRADE";
 
+  const slPrice = (prem * 0.80).toFixed(2);     // 20% Stop Loss
+  const targetPrice = (prem * 1.50).toFixed(2); // 50% Target
+  const capitalNeeded = (prem * 65);
+
+  // 4. Update the UI
   const title = document.getElementById('statusTitle');
-  title.textContent = verdict === "✅ GO" ? "🔥 GAMMA BLAST TRIGGERED" : "WAITING FOR SETUP...";
-  title.style.color = verdict === "✅ GO" ? "var(--green)" : "var(--red)";
+  title.textContent = (verdict === "✅ GO") ? "🔥 GAMMA BLAST TRIGGERED" : "WAITING FOR SETUP...";
+  title.style.color = (verdict === "✅ GO") ? "#00875a" : "#cc2244";
 
-  const atmStrike = Math.round(spot / 100) * 100;
-  const tbody = document.getElementById('strikeTableBody');
-  tbody.innerHTML = `<tr>
-    <td>${atmStrike}</td>
-    <td>${isBullish ? 'CE' : 'PE'}</td>
-    <td>₹${prem}</td>
-    <td>₹${(prem * LOT_SIZE).toLocaleString()}</td>
-    <td style="color:${verdict.includes('✅') ? 'var(--green)' : 'var(--red)'}; font-weight:bold;">${verdict}</td>
-  </tr>`;
+  const atmStrike = Math.round(spot / 50) * 50;
+  
+  // 5. Build the New Table Row
+  document.getElementById('strikeTableBody').innerHTML = `
+    <tr>
+      <td>${atmStrike}</td>
+      <td>${isBullish ? 'CE' : 'PE'}</td>
+      <td>₹${prem}</td>
+      <td style="color:#cc2244; font-weight:bold;">₹${slPrice}</td>
+      <td style="color:#00875a; font-weight:bold;">₹${targetPrice}</td>
+      <td>₹${capitalNeeded.toLocaleString()}</td>
+      <td style="font-weight:bold; color:${verdict.includes('✅') ? '#00875a' : '#cc2244'}">${verdict}</td>
+    </tr>
+  `;
 
-  log(`Scan finished for ${expiry}. Setup: ${verdict}`, verdict.includes('✅') ? 'success' : '');
+  log(`Scan finished. Verdict: ${verdict}`);
 }
 
 setInterval(() => {
