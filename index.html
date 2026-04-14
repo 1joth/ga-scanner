@@ -179,6 +179,7 @@ async function fetchLiveData() {
 }
 
 function runScan() {
+  if (window.navigator.vibrate) window.navigator.vibrate(50);
   const spot = parseFloat(document.getElementById('spot').value);
   const pcr = parseFloat(document.getElementById('pcr').value);
   const ivp = parseFloat(document.getElementById('ivPercentile').value);
