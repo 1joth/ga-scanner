@@ -128,26 +128,31 @@ function log(msg, type='') {
 
 async function fetchLiveData() {
   const status = document.getElementById('fetchStatus');
-  status.textContent = "⏳ FETCHING NSE LIVE DATA...";
+  status.textContent = "⏳ FETCHING FROM MARKET FEED...";
   
   try {
-    const PROXY_URL = "https://script.google.com/macros/s/AKfycbwzikxvlKKJRgvMNdQd7qjut6LnoJ4dlO1bFJwGY0SOxMzsnGJwyOn67POwqFkD-3HsJA/exec"; 
-    const response = await fetch(PROXY_URL);
-    const data = await response.json();
+    // We use a public mirror for Yahoo Finance Nifty Data
+    // Symbol for Nifty 50 is ^NSEI
+    const url = "https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=1m&range=1d";
+    
+    // Using a reliable CORS proxy to bypass the blocks
+    const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+    const json = await response.json();
+    const data = JSON.parse(json.contents);
 
-    // Mapping NSE data to your scanner
-    const spot = data.records.underlyingValue;
-    const nextExpiry = data.records.expiryDates[0];
+    const spot = data.chart.result[0].meta.regularMarketPrice;
+    const high = Math.max(...data.chart.result[0].indicators.quote[0].high);
     
-    // Update your inputs
+    // Update your scanner inputs automatically
     document.getElementById('spot').value = Math.floor(spot);
-    document.getElementById('expiryDate').value = nextExpiry;
+    document.getElementById('dayHigh').value = Math.floor(high);
     
-    status.textContent = "✅ SYNCED WITH NSE";
-    log(`Live Spot: ${spot} | Expiry: ${nextExpiry}`, "success");
+    status.textContent = "✅ SYNCED WITH FEED";
+    log(`Live Feed Sync: Nifty @ ${spot} | Day High: ${Math.floor(high)}`, "success");
+    
   } catch (e) {
-    status.textContent = "❌ NSE SYNC FAILED";
-    log("Check your Proxy URL deployment.", "error");
+    status.textContent = "❌ FEED SYNC FAILED";
+    log("Market data feed currently unavailable.", "error");
   }
 }
 
