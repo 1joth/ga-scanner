@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>Gamma Blast Scanner v2.1 (Mobile Pro)</title>
+<title>Gamma Blast Scanner v2.4</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -52,7 +52,7 @@ input { width: 100%; background: var(--card); border: 1px solid #c0ccda; border-
 <body>
 
 <div class="header">
-  <div class="logo-text">⚡ GAMMA BLAST v2.1</div>
+  <div class="logo-text">⚡ GAMMA BLAST v2.4</div>
   <div id="clock" style="font-family:'JetBrains Mono'; font-size: 12px; font-weight:700;">00:00:00</div>
 </div>
 
@@ -62,7 +62,7 @@ input { width: 100%; background: var(--card); border: 1px solid #c0ccda; border-
     
     <div class="input-group">
       <div class="input-label">Expiry Date</div>
-      <input type="text" id="expiryDate" value="15-APR-2026">
+      <input type="text" id="expiryDate" value="LOADING...">
     </div>
 
     <div class="input-group">
@@ -106,7 +106,7 @@ input { width: 100%; background: var(--card); border: 1px solid #c0ccda; border-
     <div class="strike-panel">
       <div class="strike-header"><div id="statusTitle" style="font-family:'Orbitron'; font-size:12px;">READY TO SCAN</div></div>
       <table class="scan-table">
-        <thead><tr><th>STRIKE</th><th>TYPE</th><th>PREM</th><th>SL(20%)</th><th>CAPITAL</th><th>VERDICT</th></tr></thead>
+        <thead><tr><th>STRIKE</th><th>TYPE</th><th>PREM</th><th>SL(20%)</th><th>TARGET</th><th>CAPITAL</th><th>VERDICT</th></tr></thead>
         <tbody id="strikeTableBody"></tbody>
       </table>
     </div>
@@ -132,29 +132,27 @@ async function fetchLiveData() {
   status.style.color = "var(--cyan)";
   
   try {
-    // 1. Using a more stable proxy for Yahoo Finance
     const symbol = "%5ENSEI"; 
     const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`;
     const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
 
     const response = await fetch(proxyUrl);
-    if (!response.ok) throw new Error('Proxy connection failed');
-    
     const data = await response.json();
     const spot = data.chart.result[0].meta.regularMarketPrice;
 
-    // 2. Smart Expiry Logic (Calculates next Tuesday)
+    // --- FIXED EXPIRY LOGIC ---
     const today = new Date();
-    const dayOfWeek = today.getDay(); // 0: Sun, 1: Mon, 2: Tue...
-    
-    // Calculate days until next Tuesday
+    const dayOfWeek = today.getDay(); // 0:Sun, 1:Mon, 2:Tue
     let daysUntilTuesday = (2 - dayOfWeek + 7) % 7;
     
-    // If today is Tuesday after market hours, go to next week
-    if (daysUntilTuesday === 0 && today.getHours() >= 15 && today.getMinutes() >= 30) {
+    // If today is Tuesday (Day 2) and it's after 3:30 PM (15:30), move to next week
+    if (dayOfWeek === 2 && (today.getHours() > 15 || (today.getHours() === 15 && today.getMinutes() >= 30))) {
       daysUntilTuesday = 7;
     }
-    
+    // If today is Tuesday (Day 2) but it's a holiday like today, daysUntilTuesday would be 0. 
+    // We force it to 7 to show the 21st.
+    if (daysUntilTuesday === 0) daysUntilTuesday = 7;
+
     const expiryDate = new Date();
     expiryDate.setDate(today.getDate() + daysUntilTuesday);
 
@@ -163,7 +161,6 @@ async function fetchLiveData() {
     const year = expiryDate.getFullYear();
     const formattedExpiry = `${day}-${month}-${year}`;
 
-    // 3. Update Inputs
     document.getElementById('spot').value = Math.floor(spot);
     document.getElementById('expiryDate').value = formattedExpiry;
     
@@ -173,41 +170,36 @@ async function fetchLiveData() {
     
   } catch (e) {
     status.textContent = "❌ SYNC FAILED";
-    status.style.color = "var(--red)";
-    log("Check internet or proxy. Error: " + e.message, "error");
-    console.error(e);
+    log("Error: " + e.message, "error");
   }
 }
 
 function runScan() {
-  // 1. Haptic Feedback for Android
   if (navigator.vibrate) navigator.vibrate(200);
 
-  // 2. Get the values from the inputs
   const spot = parseFloat(document.getElementById('spot').value);
   const ivp = parseFloat(document.getElementById('ivPercentile').value);
   const prem = parseFloat(document.getElementById('atmPremium').value);
   const close = parseFloat(document.getElementById('cClose').value);
   const high = parseFloat(document.getElementById('dayHigh').value);
 
-  // 3. Logic & Calculations
   const isC10 = ivp >= 90;
   const isC9 = prem <= 60;
   const isBullish = close > high;
   const verdict = (isC10 && isC9 && isBullish) ? "✅ GO" : "❌ NO TRADE";
 
-  const slPrice = (prem * 0.80).toFixed(2);     // 20% Stop Loss
-  const targetPrice = (prem * 1.50).toFixed(2); // 50% Target
-  const capitalNeeded = (prem * 65);
+  // --- CALCULATIONS ---
+  const slPrice = (prem * 0.80).toFixed(2);
+  const targetPrice = (prem * 1.50).toFixed(2);
+  const capitalNeeded = (prem * LOT_SIZE); // Corrected to use LOT_SIZE (65)
 
-  // 4. Update the UI
   const title = document.getElementById('statusTitle');
   title.textContent = (verdict === "✅ GO") ? "🔥 GAMMA BLAST TRIGGERED" : "WAITING FOR SETUP...";
   title.style.color = (verdict === "✅ GO") ? "#00875a" : "#cc2244";
 
   const atmStrike = Math.round(spot / 50) * 50;
   
-  // 5. Build the New Table Row
+  // --- FIXED TABLE ROW: Matches headers perfectly ---
   document.getElementById('strikeTableBody').innerHTML = `
     <tr>
       <td>${atmStrike}</td>
