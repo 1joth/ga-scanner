@@ -153,7 +153,7 @@ function runScan() {
 
   const isBullish = close > high;
   const isC9 = prem <= 60;
-  const isC10 = ivp > 90;
+  const isC10 = ivp >= 90;
   const verdict = (isC10 && isC9 && isBullish) ? "✅ GO" : "❌ NO TRADE";
 
   const title = document.getElementById('statusTitle');
