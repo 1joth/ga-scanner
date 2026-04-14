@@ -126,13 +126,29 @@ function log(msg, type='') {
   el.prepend(entry);
 }
 
-function fetchLiveData() {
+async function fetchLiveData() {
   const status = document.getElementById('fetchStatus');
-  status.textContent = "Connecting...";
-  setTimeout(() => {
-    status.textContent = "✅ DATA SYNCED";
-    log("NSE Session active. Lot size verified: 65.", "success");
-  }, 1000);
+  status.textContent = "⏳ FETCHING NSE LIVE DATA...";
+  
+  try {
+    const PROXY_URL = "https://script.google.com/macros/s/AKfycbzr2jxLpBf7SQDzgRL9mB4jpTfB0ZmikmrHhX1TFVhox5Fi5GMO_jPNELQZYdfVXv9sNQ/exec"; 
+    const response = await fetch(PROXY_URL);
+    const data = await response.json();
+
+    // Mapping NSE data to your scanner
+    const spot = data.records.underlyingValue;
+    const nextExpiry = data.records.expiryDates[0];
+    
+    // Update your inputs
+    document.getElementById('spot').value = Math.floor(spot);
+    document.getElementById('expiryDate').value = nextExpiry;
+    
+    status.textContent = "✅ SYNCED WITH NSE";
+    log(`Live Spot: ${spot} | Expiry: ${nextExpiry}`, "success");
+  } catch (e) {
+    status.textContent = "❌ NSE SYNC FAILED";
+    log("Check your Proxy URL deployment.", "error");
+  }
 }
 
 function runScan() {
